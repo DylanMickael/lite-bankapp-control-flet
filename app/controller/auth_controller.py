@@ -5,9 +5,17 @@ class AuthController:
     @staticmethod
     def login(username, password):
         db = SessionLocal()
-        user = db.query(User).filter(User.username == username, User.password == password).first()
+        user = db.query(User).filter(User.username == username).first()
+        if not user:
+            db.close()
+            return None, "Utilisateur non trouvé"
+        
+        if user.password != password:
+            db.close()
+            return None, "Mot de passe incorrect"
+            
         db.close()
-        return user
+        return user, "Connexion réussie"
 
     @staticmethod
     def signin(username, password, role="user"):

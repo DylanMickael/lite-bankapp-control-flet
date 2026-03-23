@@ -23,6 +23,7 @@ async def dashboard_view(page: ft.Page, current_user, on_logout):
     a_ctrl = AuditController()
 
     is_admin = current_user.role == "admin"
+    is_simple_user = current_user.role == "user"
     selected_v_id = [None]
     selected_c_num = [None]
     
@@ -64,7 +65,7 @@ async def dashboard_view(page: ft.Page, current_user, on_logout):
     async def exec_delete(e):
         if selected_c_num[0]: 
             c_ctrl.delete(selected_c_num[0]); selected_c_num[0] = None
-        elif selected_v_id[0] and is_admin: 
+        elif selected_v_id[0]: 
             v_ctrl.delete(selected_v_id[0], current_user.username); selected_v_id[0] = None
         await close_dlg(None); await refresh_data()
 
@@ -187,18 +188,24 @@ async def dashboard_view(page: ft.Page, current_user, on_logout):
         conf_modal.open = True; page.update()
 
     # --- UI Assembly ---
-    tabs_header = ft.TabBar(tabs=[ft.Tab(label="Dashboard", icon=ft.Icons.DASHBOARD), ft.Tab(label="Clients", icon=ft.Icons.PERSON), ft.Tab(label="Virements", icon=ft.Icons.SWAP_HORIZ)])
-    if is_admin: tabs_header.tabs.append(ft.Tab(label="Audit", icon=ft.Icons.HISTORY))
+    tabs_header = ft.TabBar(tabs=[ft.Tab(label="Dashboard", icon=ft.Icons.DASHBOARD)])
+    if is_simple_user: 
+        tabs_header.tabs.append(ft.Tab(label="Clients", icon=ft.Icons.PERSON))
+        tabs_header.tabs.append(ft.Tab(label="Virements", icon=ft.Icons.SWAP_HORIZ))
+    if is_admin: 
+        tabs_header.tabs.append(ft.Tab(label="Audit", icon=ft.Icons.HISTORY))
 
-    c_actions = ft.Row([ft.ElevatedButton("Ajouter", on_click=lambda e: page.run_task(open_c_dlg, e)), ft.ElevatedButton("Modifier", on_click=lambda e: page.run_task(open_c_dlg, e, True)), ft.IconButton(ft.Icons.DELETE, icon_color=ERROR, on_click=open_conf, visible=is_admin)])
-    v_actions = ft.Row([ft.ElevatedButton("Ajouter", on_click=lambda e: page.run_task(open_v_dlg, e)), ft.ElevatedButton("Modifier", on_click=lambda e: page.run_task(open_v_dlg, e, True)), ft.IconButton(ft.Icons.DELETE, icon_color=ERROR, on_click=open_conf, visible=is_admin)])
+    c_actions = ft.Row([ft.ElevatedButton("Ajouter", on_click=lambda e: page.run_task(open_c_dlg, e)), ft.ElevatedButton("Modifier", on_click=lambda e: page.run_task(open_c_dlg, e, True)), ft.IconButton(ft.Icons.DELETE, icon_color=ERROR, on_click=open_conf)])
+    v_actions = ft.Row([ft.ElevatedButton("Ajouter", on_click=lambda e: page.run_task(open_v_dlg, e)), ft.ElevatedButton("Modifier", on_click=lambda e: page.run_task(open_v_dlg, e, True)), ft.IconButton(ft.Icons.DELETE, icon_color=ERROR, on_click=open_conf)])
 
     tabs_view = ft.TabBarView(expand=True, controls=[
         ft.Column([ft.Container(padding=30, content=stats_container), ft.Container(padding=30, content=ft.Text(f"Bienvenue, {current_user.username}", size=24, weight="bold"))], expand=True, scroll=ft.ScrollMode.AUTO),
-        table_card("Clients", clients_container, c_actions),
-        table_card("Virements", virements_container, v_actions),
     ])
-    if is_admin: tabs_view.controls.append(table_card("Audit", audit_container, None))
+    if is_simple_user: 
+        tabs_view.controls.append(table_card("Clients", clients_container, c_actions))
+        tabs_view.controls.append(table_card("Virements", virements_container, v_actions))
+    if is_admin: 
+        tabs_view.controls.append(table_card("Audit", audit_container, None))
 
     header = ft.Container(content=ft.Row([ft.Text("BankApp Control", size=20, weight="bold"), ft.Row([ft.IconButton(ft.Icons.REFRESH, on_click=refresh_data), ft.IconButton(ft.Icons.LOGOUT, on_click=on_logout)])], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), padding=20, border=ft.border.only(bottom=ft.BorderSide(1, BORDER)))
 

@@ -74,35 +74,39 @@ def setup_database():
     # 3. Seeding des données
     db = SessionLocal()
     try:
-        # Création des utilisateurs
+        print("🌱 Seeding des utilisateurs et clients...")
+        # Création des utilisateurs demandés
         admin = User(username="admin", password="admin123", role="admin")
-        simple_user = User(username="dylan", password="password123", role="user")
-        db.add_all([admin, simple_user])
-        db.flush() 
-
-        # Création du client Dylan
-        simple_customer = Client(nomclient="Dylan Mickaël", solde=1000.0)
-        db.add(simple_customer)
-        db.flush()
-
-        # --- VIREMENTS ---
-        print("💸 Seeding des virements et déclenchement des triggers...")
+        u1 = User(username="user1", password="user123", role="user")
+        u2 = User(username="user2", password="user456", role="user")
         
-        # 1. Virement ajouté par l'admin (500 €)
-        db.execute(text("SELECT set_config('app.current_user', 'admin', false)"))
-        v1 = Virement(num_compte=simple_customer.num_compte, montant=500.0)
+        db.add_all([admin, u1, u2])
+        
+        # Création du client cible
+        customer = Client(nomclient="John Doe", solde=1000.0)
+        db.add(customer)
+        db.flush() # Pour récupérer les IDs
+
+        print("💸 Exécution des virements par les utilisateurs...")
+
+        # --- OPERATION USER 1 ---
+        # On définit l'utilisateur courant pour le trigger PostgreSQL
+        db.execute(text("SELECT set_config('app.current_user', 'user1', false)"))
+        v1 = Virement(num_compte=customer.num_compte, montant=500.0)
         db.add(v1)
         db.flush() 
+        print(" -> 1 virement effectué par user1 (500€)")
 
-        # 2. Deux virements ajoutés par dylan (200 € et 300 €)
-        db.execute(text("SELECT set_config('app.current_user', 'dylan', false)"))
-        v2 = Virement(num_compte=simple_customer.num_compte, montant=200.0)
-        v3 = Virement(num_compte=simple_customer.num_compte, montant=300.0)
+        # --- OPERATIONS USER 2 ---
+        db.execute(text("SELECT set_config('app.current_user', 'user2', false)"))
+        v2 = Virement(num_compte=customer.num_compte, montant=200.0)
+        v3 = Virement(num_compte=customer.num_compte, montant=300.0)
         db.add_all([v2, v3])
+        print(" -> 2 virements effectués par user2 (200€ et 300€)")
         
         db.commit()
-        print("✅ Seeding terminé.")
-        print(f"💰 Solde final attendu pour Dylan : 2000.00 €")
+        print("✅ Seeding terminé avec succès.")
+        print(f"💰 Solde final de John Doe : 2000.00 € (1000 initial + 1000 virements)")
 
     except Exception as e:
         print(f"❌ Erreur seeding: {e}")

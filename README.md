@@ -46,7 +46,8 @@ python main.py
 | Rôle  | Utilisateur | Mot de passe |
 |-------|-------------|--------------|
 | Admin | `admin`     | `admin123`   |
-| Staff | `dylan`     | `password123`|
+| User  | `user1`     | `user123`    |
+| User  | `user2`     | `user456`    |
 
 ## 🏗️ Architecture
 - `app/components/`: Composants UI réutilisables (Cards, Modals, Tables).
