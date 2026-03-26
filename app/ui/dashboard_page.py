@@ -4,7 +4,9 @@ from app.controller.virement_controller import VirementController
 from app.controller.audit_controller import AuditController
 from app.components.stat_card import stat_card
 from app.components.table_card import table_card
+from app.components.dashboard_modals import dashboard_modals
 import datetime
+import asyncio
 
 # --- Palette ---
 BG       = "#f8fafc"
@@ -32,6 +34,8 @@ async def dashboard_view(page: ft.Page, current_user, on_logout):
     input_c_solde = ft.TextField(label="Solde Initial (Ar)", border_radius=10)
     input_v_nc = ft.TextField(label="N° Compte", border_radius=10)
     input_v_amt = ft.TextField(label="Montant (Ar)", border_radius=10)
+    success_msg_text = ft.Text("")
+    error_msg_text = ft.Text("")
 
     stats_container = ft.Container()
     audit_stats_container = ft.Container()
@@ -41,56 +45,100 @@ async def dashboard_view(page: ft.Page, current_user, on_logout):
 
     # --- Persistent Modals in Overlay ---
     async def close_dlg(e):
-        for dlg in [c_modal, v_modal, conf_modal]:
+        for dlg in [c_modal, v_modal, conf_modal, success_modal, error_modal]:
             dlg.open = False
+        page.update()
+
+    async def open_success(msg):
+        success_msg_text.value = msg
+        success_modal.open = True
+        page.update()
+
+    async def open_error(msg):
+        error_msg_text.value = msg
+        error_modal.open = True
         page.update()
 
     async def save_client(e):
         try:
             val = float(input_c_solde.value or 0)
-            if selected_c_num[0]: c_ctrl.update(selected_c_num[0], input_c_nom.value, val)
-            else: c_ctrl.create(input_c_nom.value, val)
-            await close_dlg(None); await refresh_data()
+            is_edit = selected_c_num[0] is not None
+            if is_edit: 
+                c_ctrl.update(selected_c_num[0], input_c_nom.value, val)
+                msg = "Client mis à jour avec succès"
+            else: 
+                c_ctrl.create(input_c_nom.value, val)
+                msg = "Nouveau client créé avec succès"
+            
+            selected_c_num[0] = None # Reset selection
+            await close_dlg(None)
+            await refresh_data()
+            await open_success(msg)
         except Exception as ex:
-            page.snack_bar = ft.SnackBar(ft.Text(f"Erreur Client: {ex}"), bgcolor=ERROR); page.snack_bar.open = True; page.update()
+            await open_error(f"Erreur Client: {ex}")
 
     async def save_virement(e):
         try:
             amt = float(input_v_amt.value or 0); nc = int(input_v_nc.value or 0)
-            if selected_v_id[0]: v_ctrl.update(selected_v_id[0], nc, amt, current_user.username)
-            else: v_ctrl.create(nc, amt, current_user.username)
-            await close_dlg(None); await refresh_data()
+            is_edit = selected_v_id[0] is not None
+            if is_edit: 
+                v_ctrl.update(selected_v_id[0], nc, amt, current_user.username)
+                msg = "Virement modifié avec succès"
+            else: 
+                v_ctrl.create(nc, amt, current_user.username)
+                msg = "Virement effectué avec succès"
+            
+            selected_v_id[0] = None # Reset selection
+            await close_dlg(None)
+            await refresh_data()
+            await open_success(msg)
         except Exception as ex:
-            page.snack_bar = ft.SnackBar(ft.Text(f"Erreur Virement: {ex}"), bgcolor=ERROR); page.snack_bar.open = True; page.update()
+            await open_error(f"Erreur Virement: {ex}")
 
     async def exec_delete(e):
-        if selected_c_num[0]: 
-            c_ctrl.delete(selected_c_num[0]); selected_c_num[0] = None
-        elif selected_v_id[0]: 
-            v_ctrl.delete(selected_v_id[0], current_user.username); selected_v_id[0] = None
-        await close_dlg(None); await refresh_data()
+        try:
+            msg = ""
+            # Explicitly check both and clear both to be safe
+            if delete_type[0] == "client" and selected_c_num[0]: 
+                c_ctrl.delete(selected_c_num[0])
+                selected_c_num[0] = None
+                msg = "Client supprimé avec succès"
+            elif delete_type[0] == "virement" and selected_v_id[0]: 
+                v_ctrl.delete(selected_v_id[0], current_user.username)
+                selected_v_id[0] = None
+                msg = "Virement supprimé avec succès"
+            
+            delete_type[0] = None # Reset
+            await close_dlg(None)
+            await refresh_data()
+            if msg:
+                await open_success(msg)
+        except Exception as ex:
+            await open_error(f"Erreur Suppression: {ex}")
 
-    c_modal = ft.AlertDialog(
-        title=ft.Text("Gestion Client"),
-        content=ft.Column([input_c_nom, input_c_solde], tight=True, spacing=15),
-        actions=[ft.TextButton("Annuler", on_click=close_dlg), ft.ElevatedButton("Enregistrer", bgcolor=ACCENT, color="white", on_click=save_client)]
-    )
-    
-    v_modal = ft.AlertDialog(
-        title=ft.Text("Gestion Virement"),
-        content=ft.Column([input_v_nc, input_v_amt], tight=True, spacing=15),
-        actions=[ft.TextButton("Annuler", on_click=close_dlg), ft.ElevatedButton("Confirmer", bgcolor=ACCENT, color="white", on_click=save_virement)]
-    )
-
-    conf_modal = ft.AlertDialog(
-        title=ft.Text("Confirmation"),
-        content=ft.Text("Êtes-vous sûr de vouloir supprimer cet élément ?"),
-        actions=[ft.TextButton("Non", on_click=close_dlg), ft.ElevatedButton("Oui, Supprimer", bgcolor=ERROR, color="white", on_click=exec_delete)]
+    c_modal, v_modal, conf_modal, success_modal, error_modal = dashboard_modals(
+        input_c_nom, input_c_solde,
+        input_v_nc, input_v_amt,
+        close_dlg, save_client, save_virement, exec_delete,
+        success_msg_text, close_dlg,
+        error_msg_text, close_dlg
     )
 
     # Pre-add to overlay for reliability
-    if not any(d in page.overlay for d in [c_modal, v_modal, conf_modal]):
-        page.overlay.extend([c_modal, v_modal, conf_modal])
+    if not any(d in page.overlay for d in [c_modal, v_modal, conf_modal, success_modal, error_modal]):
+        page.overlay.extend([c_modal, v_modal, conf_modal, success_modal, error_modal])
+
+    # --- Auto Refresh Task ---
+    async def auto_refresh():
+        while True:
+            await asyncio.sleep(5)
+            # Check if we are still on dashboard before refreshing
+            if page.route != "/dashboard":
+                break
+            try:
+                await refresh_data()
+            except Exception:
+                break
 
     # --- Refresh Logic ---
     async def refresh_data(e=None):
@@ -112,6 +160,7 @@ async def dashboard_view(page: ft.Page, current_user, on_logout):
             def mk_on_c_select(num):
                 async def on_select(e):
                     selected_c_num[0] = num if str(e.data).lower() == "true" else None
+                    if selected_c_num[0]: selected_v_id[0] = None # Deselect virement if client is selected
                     await refresh_data()
                 return on_select
 
@@ -128,6 +177,7 @@ async def dashboard_view(page: ft.Page, current_user, on_logout):
             def mk_on_v_select(vid):
                 async def on_select(e):
                     selected_v_id[0] = vid if str(e.data).lower() == "true" else None
+                    if selected_v_id[0]: selected_c_num[0] = None # Deselect client if virement is selected
                     await refresh_data()
                 return on_select
 
@@ -151,7 +201,7 @@ async def dashboard_view(page: ft.Page, current_user, on_logout):
                         ft.DataColumn(ft.Text("Date Op.")),
                         ft.DataColumn(ft.Text("Anc.")),
                         ft.DataColumn(ft.Text("Nouv.")),
-                        ft.DataColumn(ft.Text("User")),
+                        ft.DataColumn(ft.Text("Utilisateur")),
                     ],
                     rows=[
                         ft.DataRow(cells=[
@@ -172,7 +222,8 @@ async def dashboard_view(page: ft.Page, current_user, on_logout):
     # --- UI Handlers ---
     async def open_c_dlg(e, edit=False):
         if edit and not selected_c_num[0]:
-            page.snack_bar = ft.SnackBar(ft.Text("Sélectionnez un client."), bgcolor=WARNING); page.snack_bar.open = True; page.update(); return
+            show_toast(page, "Sélectionnez un client.", False)
+            return
         c_modal.title.value = "Modifier Client" if edit else "Nouveau Client"
         if edit:
             c = next((c for c in c_ctrl.get_all() if c.num_compte == selected_c_num[0]), None)
@@ -182,7 +233,8 @@ async def dashboard_view(page: ft.Page, current_user, on_logout):
 
     async def open_v_dlg(e, edit=False):
         if edit and not selected_v_id[0]:
-            page.snack_bar = ft.SnackBar(ft.Text("Sélectionnez une opération."), bgcolor=WARNING); page.snack_bar.open = True; page.update(); return
+            show_toast(page, "Sélectionnez une opération.", False)
+            return
         v_modal.title.value = "Modifier Virement" if edit else "Nouveau Virement"
         if edit:
             v = next((v for v in v_ctrl.get_all() if v.num_virement == selected_v_id[0]), None)
@@ -190,8 +242,12 @@ async def dashboard_view(page: ft.Page, current_user, on_logout):
         else: input_v_nc.value = ""; input_v_amt.value = ""
         v_modal.open = True; page.update()
 
-    async def open_conf(e):
-        if not selected_c_num[0] and not selected_v_id[0]: return
+    delete_type = [None] # Track what we want to delete
+
+    async def open_conf(e, dtype=None):
+        if dtype == "client" and not selected_c_num[0]: return
+        if dtype == "virement" and not selected_v_id[0]: return
+        delete_type[0] = dtype
         conf_modal.open = True; page.update()
 
     # --- UI Assembly ---
@@ -202,8 +258,8 @@ async def dashboard_view(page: ft.Page, current_user, on_logout):
     if is_admin: 
         tabs_header.tabs.append(ft.Tab(label="Audit", icon=ft.Icons.HISTORY))
 
-    c_actions = ft.Row([ft.ElevatedButton("Ajouter", on_click=lambda e: page.run_task(open_c_dlg, e)), ft.ElevatedButton("Modifier", on_click=lambda e: page.run_task(open_c_dlg, e, True)), ft.IconButton(ft.Icons.DELETE, icon_color=ERROR, on_click=open_conf)])
-    v_actions = ft.Row([ft.ElevatedButton("Ajouter", on_click=lambda e: page.run_task(open_v_dlg, e)), ft.ElevatedButton("Modifier", on_click=lambda e: page.run_task(open_v_dlg, e, True)), ft.IconButton(ft.Icons.DELETE, icon_color=ERROR, on_click=open_conf)])
+    c_actions = ft.Row([ft.ElevatedButton("Ajouter", on_click=lambda e: page.run_task(open_c_dlg, e)), ft.ElevatedButton("Modifier", on_click=lambda e: page.run_task(open_c_dlg, e, True)), ft.IconButton(ft.Icons.DELETE, icon_color=ERROR, on_click=lambda e: page.run_task(open_conf, e, "client"))])
+    v_actions = ft.Row([ft.ElevatedButton("Ajouter", on_click=lambda e: page.run_task(open_v_dlg, e)), ft.ElevatedButton("Modifier", on_click=lambda e: page.run_task(open_v_dlg, e, True)), ft.IconButton(ft.Icons.DELETE, icon_color=ERROR, on_click=lambda e: page.run_task(open_conf, e, "virement"))])
 
     tabs_view = ft.TabBarView(expand=True, controls=[
         ft.Column([
@@ -226,4 +282,7 @@ async def dashboard_view(page: ft.Page, current_user, on_logout):
     layout = ft.Column([header, ft.Tabs(length=len(tabs_header.tabs), content=ft.Column([tabs_header, tabs_view], expand=True), expand=True)], expand=True, spacing=0)
     
     await refresh_data()
-    return ft.View(route="/dashboard", bgcolor=BG, padding=0, controls=[layout])
+    page.run_task(auto_refresh)
+    
+    view = ft.View(route="/dashboard", bgcolor=BG, padding=0, controls=[layout])
+    return view

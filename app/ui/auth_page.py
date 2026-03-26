@@ -1,5 +1,6 @@
 import flet as ft
 from app.controller.auth_controller import AuthController
+import asyncio
 
 # --- Palette ---
 BG       = "#f8fafc"
@@ -53,8 +54,8 @@ def login_view(page: ft.Page, on_login_success, navigate_to):
 
         user, msg = AuthController.login(username.value, password.value)
         if user:
-            page.snack_bar = ft.SnackBar(ft.Text(f"Bienvenue, {user.username}"), bgcolor=SUCCESS)
-            page.snack_bar.open = True
+            # Login is immediate, we don't necessarily need a modal here if redirect is fast
+            # but we can use error_label for failure as it already exists
             await on_login_success(user)
         else:
             error_label.value = msg
@@ -62,7 +63,7 @@ def login_view(page: ft.Page, on_login_success, navigate_to):
             page.update()
 
     async def go_signin(e):
-        navigate_to("/signin")
+        await navigate_to("/signin")
 
     return ft.View(
         route="/",
@@ -111,16 +112,20 @@ def signin_view(page: ft.Page, navigate_to):
 
         user, msg = AuthController.signin(username.value, password.value, "user")
         if user:
-            page.snack_bar = ft.SnackBar(ft.Text(msg), bgcolor=SUCCESS)
-            page.snack_bar.open = True
-            navigate_to("/")
+            # For success in signin, let's use a snackbar but correctly update it or error label
+            error_label.value = msg
+            error_label.color = SUCCESS
+            error_label.visible = True
+            page.update()
+            await asyncio.sleep(2)
+            await navigate_to("/")
         else:
             error_label.value = msg
             error_label.visible = True
             page.update()
 
     async def go_back(e):
-        navigate_to("/")
+        await navigate_to("/")
 
     return ft.View(
         route="/signin",

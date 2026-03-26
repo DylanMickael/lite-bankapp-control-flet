@@ -15,27 +15,27 @@ async def main(page: ft.Page):
     async def on_login_success(user):
         nonlocal current_user
         current_user = user
-        page.go("/dashboard")
+        await page.push_route("/dashboard")
 
     async def on_logout(e=None):
         nonlocal current_user
         current_user = None
-        page.go("/")
+        await page.push_route("/")
 
     async def route_change(e):
         try:
             page.views.clear()
             
             if page.route == "/":
-                page.views.append(login_view(page, on_login_success, page.go))
+                page.views.append(login_view(page, on_login_success, page.push_route))
             elif page.route == "/signin":
-                page.views.append(signin_view(page, page.go))
+                page.views.append(signin_view(page, page.push_route))
             elif page.route == "/dashboard":
                 if current_user:
                     view = await dashboard_view(page, current_user, on_logout)
                     page.views.append(view)
                 else:
-                    page.go("/")
+                    await page.push_route("/")
             
             page.update()
         except Exception as ex:
@@ -48,7 +48,7 @@ async def main(page: ft.Page):
         if len(page.views) > 1:
             page.views.pop()
             top = page.views[-1]
-            page.go(top.route)
+            await page.push_route(top.route)
 
     page.on_route_change = route_change
     page.on_view_pop = view_pop
