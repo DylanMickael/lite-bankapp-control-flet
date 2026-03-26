@@ -29,11 +29,12 @@ async def dashboard_view(page: ft.Page, current_user, on_logout):
     
     # --- Inputs ---
     input_c_nom = ft.TextField(label="Nom Client", border_radius=10)
-    input_c_solde = ft.TextField(label="Solde Initial (€)", border_radius=10)
+    input_c_solde = ft.TextField(label="Solde Initial (Ar)", border_radius=10)
     input_v_nc = ft.TextField(label="N° Compte", border_radius=10)
-    input_v_amt = ft.TextField(label="Montant (€)", border_radius=10)
+    input_v_amt = ft.TextField(label="Montant (Ar)", border_radius=10)
 
     stats_container = ft.Container()
+    audit_stats_container = ft.Container()
     clients_container = ft.Container()
     virements_container = ft.Container()
     audit_container = ft.Container()
@@ -95,12 +96,18 @@ async def dashboard_view(page: ft.Page, current_user, on_logout):
     async def refresh_data(e=None):
         try:
             all_v = v_ctrl.get_all(); all_c = c_ctrl.get_all(); all_a = a_ctrl.get_all() if is_admin else []
+            audit_counts = a_ctrl.get_counts() if is_admin else {"ajout": 0, "modification": 0, "suppression": 0}
             
-            stats_container.content = ft.Row([
-                stat_card("Comptes", len(all_c), ft.Icons.PEOPLE, ACCENT),
-                stat_card("Opérations", len(all_v), ft.Icons.SWAP_HORIZ, SUCCESS),
-                *( [stat_card("Audits", len(all_a), ft.Icons.HISTORY, WARNING)] if is_admin else [] )
-            ], spacing=20)
+            def create_stats_row():
+                return ft.Row([
+                    stat_card("Ajout", audit_counts["ajout"], ft.Icons.ADD_CIRCLE, ACCENT),
+                    stat_card("Modification", audit_counts["modification"], ft.Icons.EDIT, ACCENT),
+                    stat_card("Suppression", audit_counts["suppression"], ft.Icons.DELETE, ERROR)
+                ], spacing=20)
+            
+            stats_container.content = create_stats_row()
+            if is_admin:
+                audit_stats_container.content = create_stats_row()
 
             def mk_on_c_select(num):
                 async def on_select(e):
@@ -188,7 +195,7 @@ async def dashboard_view(page: ft.Page, current_user, on_logout):
         conf_modal.open = True; page.update()
 
     # --- UI Assembly ---
-    tabs_header = ft.TabBar(tabs=[ft.Tab(label="Dashboard", icon=ft.Icons.DASHBOARD)])
+    tabs_header = ft.TabBar(tabs=[ft.Tab(label="Accueil", icon=ft.Icons.DASHBOARD)])
     if is_simple_user: 
         tabs_header.tabs.append(ft.Tab(label="Clients", icon=ft.Icons.PERSON))
         tabs_header.tabs.append(ft.Tab(label="Virements", icon=ft.Icons.SWAP_HORIZ))
@@ -199,13 +206,20 @@ async def dashboard_view(page: ft.Page, current_user, on_logout):
     v_actions = ft.Row([ft.ElevatedButton("Ajouter", on_click=lambda e: page.run_task(open_v_dlg, e)), ft.ElevatedButton("Modifier", on_click=lambda e: page.run_task(open_v_dlg, e, True)), ft.IconButton(ft.Icons.DELETE, icon_color=ERROR, on_click=open_conf)])
 
     tabs_view = ft.TabBarView(expand=True, controls=[
-        ft.Column([ft.Container(padding=30, content=stats_container), ft.Container(padding=30, content=ft.Text(f"Bienvenue, {current_user.username}", size=24, weight="bold"))], expand=True, scroll=ft.ScrollMode.AUTO),
+        ft.Column([
+            ft.Column([ft.Container(padding=30, content=ft.Text(f"Bienvenue, {current_user.username}", size=24, weight="bold"))], expand=True, scroll=ft.ScrollMode.AUTO)
+        ], expand=True),
     ])
     if is_simple_user: 
         tabs_view.controls.append(table_card("Clients", clients_container, c_actions))
         tabs_view.controls.append(table_card("Virements", virements_container, v_actions))
     if is_admin: 
-        tabs_view.controls.append(table_card("Audit", audit_container, None))
+        tabs_view.controls.append(
+            ft.Column([
+                table_card("Audit", audit_container, None),
+                ft.Container(padding=ft.padding.only(left=20, right=20, bottom=20), content=audit_stats_container)
+            ], expand=True)
+        )
 
     header = ft.Container(content=ft.Row([ft.Text("BankApp Control", size=20, weight="bold"), ft.Row([ft.IconButton(ft.Icons.REFRESH, on_click=refresh_data), ft.IconButton(ft.Icons.LOGOUT, on_click=on_logout)])], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), padding=20, border=ft.border.only(bottom=ft.BorderSide(1, BORDER)))
 

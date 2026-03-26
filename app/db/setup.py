@@ -95,18 +95,18 @@ def setup_database():
         v1 = Virement(num_compte=customer.num_compte, montant=500.0)
         db.add(v1)
         db.flush() 
-        print(" -> 1 virement effectué par user1 (500€)")
+        print(" -> 1 virement effectué par user1 (500Ar)")
 
         # --- OPERATIONS USER 2 ---
         db.execute(text("SELECT set_config('app.current_user', 'user2', false)"))
         v2 = Virement(num_compte=customer.num_compte, montant=200.0)
         v3 = Virement(num_compte=customer.num_compte, montant=300.0)
         db.add_all([v2, v3])
-        print(" -> 2 virements effectués par user2 (200€ et 300€)")
+        print(" -> 2 virements effectués par user2 (200Ar et 300Ar)")
         
         db.commit()
         print("✅ Seeding terminé avec succès.")
-        print(f"💰 Solde final de John Doe : 2000.00 € (1000 initial + 1000 virements)")
+        print(f"💰 Solde final de John Doe : 2000.00 Ar (1000 initial + 1000 virements)")
 
     except Exception as e:
         print(f"❌ Erreur seeding: {e}")

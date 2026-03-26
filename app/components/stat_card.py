@@ -1,16 +1,19 @@
 import flet as ft
 
 def stat_card(label, value, icon, color):
+    # Calculate a light version of the color for the icon background (#AARRGGBB)
+    icon_bg = f"#33{color[1:]}" # (20% opacity)
+    
     return ft.Container(
         content=ft.Row([
             ft.Container(
                 content=ft.Icon(icon, color=color, size=24),
-                bgcolor=f"{color}15",
+                bgcolor=icon_bg,
                 padding=12,
                 border_radius=12
             ),
             ft.Column([
-                ft.Text(str(value), size=24, weight=ft.FontWeight.BOLD, color="#0f172a"),
+                ft.Text(str(value), size=24, weight=ft.FontWeight.BOLD, color="#0f172a"), 
                 ft.Text(label, size=12, color="#64748b"),
             ], spacing=0)
         ], spacing=16),
